@@ -1,4 +1,5 @@
 const https = require('https');
+const http = require('http');
 const fs = require('fs');
 const key = fs.readFileSync('localhost-key.pem');
 const cert = fs.readFileSync('localhost.pem');
@@ -11,7 +12,10 @@ const cors = require('cors');
 
 const port = 5000
 
-const server = https.createServer({key: key, cert: cert }, app);
+const server = https.createServer({
+  key: fs.readFileSync('localhost-key.pem'),
+  cert: fs.readFileSync('localhost.pem')
+},app);
 
 app.get('/', (req, res) => { 
   console.log('You are on root url')
@@ -31,37 +35,60 @@ app.use(express.json())
 app.post('/getToken',(req, res) => {
 
   const code = req.query.code
-  const client_secret = req.body.data.client_secret
-  const client_id = req.body.data.client_id
+  const CLIENT_SECRET = req.body.data.client_secret
+  const CLIENT_ID = req.body.data.client_id
 
-  axios.post('https://cambrianhelp.zendesk.com/oauth/tokens',
-  {headers:{
-    'Content-Type': 'application/json',
-  }},
-  {params:{
-    'redirect_uri':'https://localhost:3000/oauth2/callback',
-    'scope': 'read write',
-    'client_secret':client_secret,
-    'client_id':client_id,
-    "code":code,
-    'grant_type':'authorization_code'
+  console.log('code: ', code);
+  const preEncodeString = CLIENT_ID + ':' + CLIENT_SECRET
+  const authString = new Buffer.from(preEncodeString).toString('base64');
+  console.log('authString: ', authString)
+
+  axios.post(`https://api.getbase.com/oauth2/token?redirect_uri=https://localhost:3000/oauth2/callback&grant_type=authorization_code&code=${code}`,{},
+  {
+    headers:{
+    "Authorization": `Basic ${authString}`,
   }})
   .then(zenDeskResponse => {
-    console.log('token: ', zenDeskResponse.data)
+    console.log('token: ', zenDeskResponse)
     res.send(zenDeskResponse.data)
+  })
+  .catch(err => {
+    console.log('err: ', err)
   })
 })
 
 
-app.post('/listTickets',(req, res) => {
+app.post('/getContacts',(req, res) => {
 
   const token = req.body.data.token
+  console.log('token: ', token)
 
-  axios.get('https://cambrianhelp.zendesk.com/api/v2/tickets',{headers:{
+  axios.get('https://api.getbase.com/v2/contacts?sort_by=created_at',{
+    headers:{
     "Authorization":`Bearer ${token}`
   }})
-  .then(ticketList => {
-    res.send(ticketList.data)
+  .then(contactList => {
+    res.send(contactList.data)
+  })
+  .catch(err => {
+    console.log('error: ', err.data)
+  })
+})
+
+app.post('/getContactsPAT',(req, res) => {
+
+  const token = req.body.data.token
+  console.log('token: ', token)
+
+  axios.get('https://api.getbase.com/v2/contacts?sort_by=created_at',{
+    headers:{
+    "Authorization":`Bearer ${token}`
+  }})
+  .then(contactList => {
+    res.send(contactList.data)
+  })
+  .catch(err => {
+    console.log('error: ', err.data)
   })
 })
 
